@@ -1,13 +1,17 @@
 const button = document.querySelector('#toggle');
 const status = document.querySelector('#status');
 
+const UART_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_TX_CHARACTERISTIC_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+const UART_RX_CHARACTERISTIC_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+
 let device;
-let pinDataCharacteristic;
+let uartTx;
+let uartRx;
 let isOn;
 let busy = false;
-
-const IO_PIN_SERVICE_UUID = 'e95d127b-251d-470a-a062-fa1922dfa9a8';
-const PIN_DATA_CHARACTERISTIC_UUID = 'e95d8d00-251d-470a-a062-fa1922dfa9a8';
+let receivedText = '';
+let stateRequest;
 
 function setStatus(message, type = '') {
   status.textContent = message;
@@ -16,9 +20,70 @@ function setStatus(message, type = '') {
 
 function render() {
   button.disabled = busy;
-  button.classList.toggle('on', Boolean(isOn) && pinDataCharacteristic);
+  button.classList.toggle('on', Boolean(isOn) && uartRx);
   button.setAttribute('aria-pressed', String(Boolean(isOn)));
-  button.textContent = pinDataCharacteristic ? (isOn ? 'Off' : 'On') : 'Connect';
+  button.textContent = uartRx ? (isOn ? 'Off' : 'On') : 'Connect';
+}
+
+function disconnect() {
+  uartTx = undefined;
+  uartRx = undefined;
+  isOn = undefined;
+  receivedText = '';
+  if (stateRequest) stateRequest.reject(new Error('Disconnected'));
+  stateRequest = undefined;
+  setStatus('Not connected');
+  render();
+}
+
+function receiveUart(event) {
+  receivedText += new TextDecoder().decode(event.target.value);
+  const lines = receivedText.split('\n');
+  receivedText = lines.pop();
+
+  for (const line of lines) {
+    if (line !== '0' && line !== '1') continue;
+    isOn = line === '1';
+    if (stateRequest) {
+      stateRequest.resolve();
+      stateRequest = undefined;
+    }
+    render();
+  }
+}
+
+async function send(command) {
+  const value = new TextEncoder().encode(`${command}\n`);
+  if (uartRx.writeValueWithResponse) {
+    await uartRx.writeValueWithResponse(value);
+  } else {
+    await uartRx.writeValue(value);
+  }
+}
+
+async function readState() {
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      if (stateRequest?.reject === reject) stateRequest = undefined;
+      reject(new Error('Timed out while reading the light state.'));
+    }, 5000);
+
+    stateRequest = {
+      resolve: () => {
+        clearTimeout(timeout);
+        resolve();
+      },
+      reject: (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      }
+    };
+    send('?').catch((error) => {
+      clearTimeout(timeout);
+      stateRequest = undefined;
+      reject(error);
+    });
+  });
 }
 
 async function connect() {
@@ -30,28 +95,17 @@ async function connect() {
   device = await microbit.requestMicrobit(navigator.bluetooth);
   if (!device) return;
 
-  device.addEventListener('gattserverdisconnected', () => {
-    pinDataCharacteristic = undefined;
-    isOn = undefined;
-    setStatus('Not connected');
-    render();
-  });
-
+  device.addEventListener('gattserverdisconnected', disconnect, { once: true });
   const gatt = device.gatt;
   if (!gatt) throw new Error('Could not connect to your lights.');
   if (!gatt.connected) await gatt.connect();
 
-  const ioPinService = await gatt.getPrimaryService(IO_PIN_SERVICE_UUID);
-  pinDataCharacteristic = await ioPinService.getCharacteristic(PIN_DATA_CHARACTERISTIC_UUID);
-  const pinData = await pinDataCharacteristic.readValue();
-  const pinZero = Array.from({ length: pinData.byteLength / 2 }, (_, index) => ({
-    pin: pinData.getUint8(index * 2),
-    value: pinData.getUint8(index * 2 + 1)
-  })).find(({ pin }) => pin === 0);
-
-  if (!pinZero) throw new Error('Could not read the light state.');
-  isOn = Boolean(pinZero.value);
-
+  const uartService = await gatt.getPrimaryService(UART_SERVICE_UUID);
+  uartTx = await uartService.getCharacteristic(UART_TX_CHARACTERISTIC_UUID);
+  uartRx = await uartService.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
+  uartTx.addEventListener('characteristicvaluechanged', receiveUart);
+  await uartTx.startNotifications();
+  await readState();
   setStatus('Connected', 'success');
 }
 
@@ -60,25 +114,16 @@ async function toggle() {
   render();
 
   try {
-    if (!pinDataCharacteristic) {
+    if (!uartRx) {
       await connect();
       return;
     }
 
-    const nextValue = isOn ? 0 : 1;
-    const value = new Uint8Array([0, nextValue]);
-    if (pinDataCharacteristic.writeValueWithResponse) {
-      await pinDataCharacteristic.writeValueWithResponse(value);
-    } else {
-      await pinDataCharacteristic.writeValue(value);
-    }
-    isOn = Boolean(nextValue);
+    await send(isOn ? '0' : '1');
+    isOn = !isOn;
     setStatus(isOn ? 'On' : 'Off', 'success');
-  } catch (error) {
-    const message = error?.name === 'NotFoundError' && !device
-      ? 'No lights were selected.'
-      : 'Could not connect to your lights.';
-    setStatus(message, 'error');
+  } catch {
+    setStatus(device ? 'Could not connect to your lights.' : 'No lights were selected.', 'error');
   } finally {
     busy = false;
     render();

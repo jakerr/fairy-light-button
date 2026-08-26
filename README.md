@@ -2,7 +2,7 @@
 
 A one-button web controller for micro:bit GPIO 0.
 
-The GitHub Pages site is in [`web/`](web/). It uses the pinned `microbit-web-bluetooth` browser bundle for micro:bit discovery, then writes the standard Bluetooth IO Pin Data characteristic directly to toggle GPIO 0 between off (`0`) and on (`1`).
+The GitHub Pages site is in [`web/`](web/). It uses the pinned `microbit-web-bluetooth` browser bundle for micro:bit discovery and the custom UART protocol: `?` reads the state, while `0` and `1` turn the lights off and on.
 
 ## Publish on GitHub Pages
 
