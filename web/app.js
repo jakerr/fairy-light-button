@@ -18,27 +18,27 @@ function render() {
   button.disabled = busy;
   button.classList.toggle('on', Boolean(isOn) && pinDataCharacteristic);
   button.setAttribute('aria-pressed', String(Boolean(isOn)));
-  button.textContent = pinDataCharacteristic ? `GPIO 0: ${isOn ? 'On' : 'Off'}` : 'Connect micro:bit';
+  button.textContent = pinDataCharacteristic ? (isOn ? 'Off' : 'On') : 'Connect';
 }
 
 async function connect() {
   if (!navigator.bluetooth) {
-    throw new Error('Web Bluetooth needs Chrome or Edge over HTTPS.');
+    throw new Error('This browser cannot connect to your lights.');
   }
 
-  setStatus('Choose your micro:bit…');
+  setStatus('Choose your lights…');
   device = await microbit.requestMicrobit(navigator.bluetooth);
   if (!device) return;
 
   device.addEventListener('gattserverdisconnected', () => {
     pinDataCharacteristic = undefined;
     isOn = undefined;
-    setStatus('Disconnected');
+    setStatus('Not connected');
     render();
   });
 
   const gatt = device.gatt;
-  if (!gatt) throw new Error('Bluetooth GATT is unavailable.');
+  if (!gatt) throw new Error('Could not connect to your lights.');
   if (!gatt.connected) await gatt.connect();
 
   const ioPinService = await gatt.getPrimaryService(IO_PIN_SERVICE_UUID);
@@ -49,10 +49,10 @@ async function connect() {
     value: pinData.getUint8(index * 2 + 1)
   })).find(({ pin }) => pin === 0);
 
-  if (!pinZero) throw new Error('GPIO 0 was not returned by the micro:bit.');
+  if (!pinZero) throw new Error('Could not read the light state.');
   isOn = Boolean(pinZero.value);
 
-  setStatus(`Connected to ${device.name || 'micro:bit'}; GPIO 0 is ${isOn ? 'on' : 'off'}.`, 'success');
+  setStatus('Connected', 'success');
 }
 
 async function toggle() {
@@ -73,11 +73,11 @@ async function toggle() {
       await pinDataCharacteristic.writeValue(value);
     }
     isOn = Boolean(nextValue);
-    setStatus(`GPIO 0 is ${isOn ? 'on (3 V)' : 'off (0 V)'}.`, 'success');
+    setStatus(isOn ? 'On' : 'Off', 'success');
   } catch (error) {
     const message = error?.name === 'NotFoundError' && !device
-      ? 'No micro:bit was selected.'
-      : error?.message || 'Could not connect to the micro:bit.';
+      ? 'No lights were selected.'
+      : 'Could not connect to your lights.';
     setStatus(message, 'error');
   } finally {
     busy = false;

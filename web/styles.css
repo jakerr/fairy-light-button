@@ -10,4 +10,3 @@ button { width: 100%; padding: 1rem 1.5rem; border: 0; border-radius: .8rem; bac
 button:hover:not(:disabled) { background: #123b70; transform: translateY(-2px); }
 button.on { background: #16834d; }
 button:disabled { cursor: wait; opacity: .7; }
-.hint { margin: 1.5rem 0 0; color: #52647d; font-size: .9rem; }
