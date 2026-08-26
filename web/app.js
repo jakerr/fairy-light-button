@@ -26,6 +26,7 @@ function render() {
 }
 
 function disconnect() {
+  if (device?.gatt?.connected) device.gatt.disconnect();
   uartTx = undefined;
   uartRx = undefined;
   isOn = undefined;
@@ -54,19 +55,21 @@ function receiveUart(event) {
 
 async function send(command) {
   const value = new TextEncoder().encode(`${command}\n`);
-  if (uartRx.writeValueWithResponse) {
+  if (uartRx.properties.write && uartRx.writeValueWithResponse) {
     await uartRx.writeValueWithResponse(value);
+  } else if (uartRx.properties.writeWithoutResponse && uartRx.writeValueWithoutResponse) {
+    await uartRx.writeValueWithoutResponse(value);
   } else {
     await uartRx.writeValue(value);
   }
 }
 
 async function readState() {
-  await new Promise((resolve, reject) => {
+  const requestOnce = () => new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       if (stateRequest?.reject === reject) stateRequest = undefined;
       reject(new Error('Timed out while reading the light state.'));
-    }, 5000);
+    }, 1500);
 
     stateRequest = {
       resolve: () => {
@@ -84,6 +87,16 @@ async function readState() {
       reject(error);
     });
   });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await requestOnce();
+      return;
+    } catch (error) {
+      if (attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+  }
 }
 
 async function connect() {
@@ -105,6 +118,7 @@ async function connect() {
   uartRx = await uartService.getCharacteristic(UART_RX_CHARACTERISTIC_UUID);
   uartTx.addEventListener('characteristicvaluechanged', receiveUart);
   await uartTx.startNotifications();
+  await new Promise((resolve) => setTimeout(resolve, 300));
   await readState();
   setStatus('Connected', 'success');
 }
@@ -123,6 +137,7 @@ async function toggle() {
     isOn = !isOn;
     setStatus(isOn ? 'On' : 'Off', 'success');
   } catch {
+    if (uartRx && isOn === undefined) disconnect();
     setStatus(device ? 'Could not connect to your lights.' : 'No lights were selected.', 'error');
   } finally {
     busy = false;
