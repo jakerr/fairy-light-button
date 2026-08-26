@@ -225,13 +225,16 @@ async function autoReconnect() {
       return;
     }
 
-    try {
-      log('Attempting direct remembered-device connection');
-      await connectDevice(knownDevice);
-      log('Background connection complete without advertisement');
-      return;
-    } catch (error) {
-      logError('Direct remembered-device connection failed', error);
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        log(`Attempting direct remembered-device connection (${attempt} of 3)`);
+        await connectDevice(knownDevice);
+        log('Background connection complete without advertisement');
+        return;
+      } catch (error) {
+        logError(`Direct remembered-device connection ${attempt} failed`, error);
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
     }
 
     log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
