@@ -18,6 +18,7 @@ let busy = false;
 let receivedText = '';
 let stateRequest;
 let autoReconnectFinished = false;
+let watchedDevice;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -186,24 +187,38 @@ async function waitForAdvertisement(knownDevice) {
   await new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+      stopWatchingAdvertisements();
       reject(new Error('Timed out waiting for the micro:bit advertisement.'));
     }, 10000);
     const onAdvertisement = (event) => {
       clearTimeout(timeout);
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+      stopWatchingAdvertisements();
       log(`Advertisement received${event.rssi === undefined ? '' : ` (RSSI ${event.rssi})`}`);
       resolve();
     };
 
     knownDevice.addEventListener('advertisementreceived', onAdvertisement);
+    watchedDevice = knownDevice;
     knownDevice.watchAdvertisements()
       .then(() => log('Watching for the micro:bit advertisement'))
       .catch((error) => {
         clearTimeout(timeout);
         knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+        stopWatchingAdvertisements();
         reject(error);
       });
   });
+}
+
+function stopWatchingAdvertisements() {
+  const activeDevice = watchedDevice;
+  watchedDevice = undefined;
+  if (!activeDevice?.unwatchAdvertisements) return;
+
+  log('Stopping advertisement watcher');
+  const result = activeDevice.unwatchAdvertisements();
+  if (result?.catch) result.catch((error) => logError('Could not stop advertisement watcher', error));
 }
 
 async function autoReconnect() {
@@ -297,4 +312,5 @@ debugToggle.addEventListener('click', () => {
   log(`Debug log ${isOpen ? 'opened' : 'hidden'}`);
 });
 log('Page ready');
+window.addEventListener('pagehide', stopWatchingAdvertisements);
 autoReconnect();
