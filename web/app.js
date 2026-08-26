@@ -15,6 +15,7 @@ let isOn;
 let busy = false;
 let receivedText = '';
 let stateRequest;
+let reconnectAttempted = false;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -39,9 +40,10 @@ function setStatus(message, type = '') {
 
 function render() {
   button.disabled = busy;
+  button.hidden = !uartRx && !reconnectAttempted;
   button.classList.toggle('on', Boolean(isOn) && uartRx);
   button.setAttribute('aria-pressed', String(Boolean(isOn)));
-  button.textContent = uartRx ? (isOn === undefined ? 'Check lights' : (isOn ? 'Off' : 'On')) : 'Connect';
+  button.textContent = uartRx ? (isOn === undefined ? 'Check lights' : (isOn ? 'Turn off' : 'Turn on')) : 'Connect';
 }
 
 function disconnect() {
@@ -52,7 +54,7 @@ function disconnect() {
   receivedText = '';
   if (stateRequest) stateRequest.reject(new Error('Disconnected'));
   stateRequest = undefined;
-  setStatus('Not connected');
+  setStatus('Disconnected');
   render();
 }
 
@@ -129,21 +131,9 @@ async function readState() {
   }
 }
 
-async function connect() {
-  if (!navigator.bluetooth) {
-    throw new Error('This browser cannot connect to your lights.');
-  }
-
-  setStatus('Choose your lights…');
-  log('Opening device chooser');
-  device = await microbit.requestMicrobit(navigator.bluetooth);
-  if (!device) {
-    log('No device selected');
-    return;
-  }
-
-  log(`Selected device: ${device.name || '(unnamed)'}`);
-
+async function connectDevice(selectedDevice) {
+  device = selectedDevice;
+  log(`Using device: ${device.name || '(unnamed)'}`);
   device.addEventListener('gattserverdisconnected', disconnect, { once: true });
   const gatt = device.gatt;
   if (!gatt) throw new Error('Could not connect to your lights.');
@@ -166,7 +156,57 @@ async function connect() {
   log('UART notifications started');
   await new Promise((resolve) => setTimeout(resolve, 300));
   await readState();
-  setStatus('Connected', 'success');
+  setStatus('');
+}
+
+async function connect() {
+  if (!navigator.bluetooth) {
+    throw new Error('This browser cannot connect to your lights.');
+  }
+
+  setStatus('Choose your lights…');
+  log('Opening device chooser');
+  const selectedDevice = await microbit.requestMicrobit(navigator.bluetooth);
+  if (!selectedDevice) {
+    log('No device selected');
+    setStatus('');
+    return;
+  }
+
+  await connectDevice(selectedDevice);
+}
+
+async function reconnect() {
+  if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') {
+    log('Background reconnection is unavailable in this browser');
+    reconnectAttempted = true;
+    render();
+    return;
+  }
+
+  busy = true;
+  render();
+  setStatus('Connecting…');
+  try {
+    log('Looking for a previously selected device');
+    const devices = await navigator.bluetooth.getDevices();
+    const knownDevice = devices.find((candidate) => candidate.name?.startsWith('BBC micro:bit'));
+    if (!knownDevice) {
+      log('No previously selected micro:bit found');
+      return;
+    }
+
+    log(`Attempting background connection to ${knownDevice.name || '(unnamed)'}`);
+    await connectDevice(knownDevice);
+    log('Background connection complete');
+  } catch (error) {
+    logError('Background connection failed', error);
+  } finally {
+    reconnectAttempted = true;
+    busy = false;
+    setStatus('');
+    render();
+  }
 }
 
 async function toggle() {
@@ -183,14 +223,14 @@ async function toggle() {
     if (isOn === undefined) {
       log('Checking light state');
       await readState();
-      setStatus('Connected', 'success');
+      setStatus('');
       return;
     }
 
     log(`Changing lights from ${isOn ? 'on' : 'off'}`);
     await send(isOn ? '0' : '1');
     isOn = !isOn;
-    setStatus(isOn ? 'On' : 'Off', 'success');
+    setStatus('');
   } catch (error) {
     logError('Operation failed', error);
     setStatus(device ? 'Could not check your lights.' : 'No lights were selected.', 'error');
@@ -211,3 +251,4 @@ debugToggle.addEventListener('click', () => {
   log(`Debug log ${isOpen ? 'opened' : 'hidden'}`);
 });
 log('Page ready');
+reconnect();
