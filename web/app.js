@@ -22,11 +22,10 @@ function render() {
   button.disabled = busy;
   button.classList.toggle('on', Boolean(isOn) && uartRx);
   button.setAttribute('aria-pressed', String(Boolean(isOn)));
-  button.textContent = uartRx ? (isOn ? 'Off' : 'On') : 'Connect';
+  button.textContent = uartRx ? (isOn === undefined ? 'Check lights' : (isOn ? 'Off' : 'On')) : 'Connect';
 }
 
 function disconnect() {
-  if (device?.gatt?.connected) device.gatt.disconnect();
   uartTx = undefined;
   uartRx = undefined;
   isOn = undefined;
@@ -133,12 +132,17 @@ async function toggle() {
       return;
     }
 
+    if (isOn === undefined) {
+      await readState();
+      setStatus('Connected', 'success');
+      return;
+    }
+
     await send(isOn ? '0' : '1');
     isOn = !isOn;
     setStatus(isOn ? 'On' : 'Off', 'success');
   } catch {
-    if (uartRx && isOn === undefined) disconnect();
-    setStatus(device ? 'Could not connect to your lights.' : 'No lights were selected.', 'error');
+    setStatus(device ? 'Could not check your lights.' : 'No lights were selected.', 'error');
   } finally {
     busy = false;
     render();
