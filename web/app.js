@@ -3,7 +3,7 @@ const status = document.querySelector('#status');
 
 let device;
 let pinDataCharacteristic;
-let isOn = false;
+let isOn;
 let busy = false;
 
 const IO_PIN_SERVICE_UUID = 'e95d127b-251d-470a-a062-fa1922dfa9a8';
@@ -16,8 +16,8 @@ function setStatus(message, type = '') {
 
 function render() {
   button.disabled = busy;
-  button.classList.toggle('on', isOn && pinDataCharacteristic);
-  button.setAttribute('aria-pressed', String(isOn));
+  button.classList.toggle('on', Boolean(isOn) && pinDataCharacteristic);
+  button.setAttribute('aria-pressed', String(Boolean(isOn)));
   button.textContent = pinDataCharacteristic ? `GPIO 0: ${isOn ? 'On' : 'Off'}` : 'Connect micro:bit';
 }
 
@@ -32,7 +32,7 @@ async function connect() {
 
   device.addEventListener('gattserverdisconnected', () => {
     pinDataCharacteristic = undefined;
-    isOn = false;
+    isOn = undefined;
     setStatus('Disconnected');
     render();
   });
@@ -43,8 +43,16 @@ async function connect() {
 
   const ioPinService = await gatt.getPrimaryService(IO_PIN_SERVICE_UUID);
   pinDataCharacteristic = await ioPinService.getCharacteristic(PIN_DATA_CHARACTERISTIC_UUID);
+  const pinData = await pinDataCharacteristic.readValue();
+  const pinZero = Array.from({ length: pinData.byteLength / 2 }, (_, index) => ({
+    pin: pinData.getUint8(index * 2),
+    value: pinData.getUint8(index * 2 + 1)
+  })).find(({ pin }) => pin === 0);
 
-  setStatus(`Connected to ${device.name || 'micro:bit'}`, 'success');
+  if (!pinZero) throw new Error('GPIO 0 was not returned by the micro:bit.');
+  isOn = Boolean(pinZero.value);
+
+  setStatus(`Connected to ${device.name || 'micro:bit'}; GPIO 0 is ${isOn ? 'on' : 'off'}.`, 'success');
 }
 
 async function toggle() {
@@ -52,8 +60,10 @@ async function toggle() {
   render();
 
   try {
-    if (!pinDataCharacteristic) await connect();
-    if (!pinDataCharacteristic) return;
+    if (!pinDataCharacteristic) {
+      await connect();
+      return;
+    }
 
     const nextValue = isOn ? 0 : 1;
     const value = new Uint8Array([0, nextValue]);
