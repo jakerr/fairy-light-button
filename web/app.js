@@ -189,7 +189,7 @@ async function waitForAdvertisement(knownDevice) {
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
       stopWatchingAdvertisements();
       reject(new Error('Timed out waiting for the micro:bit advertisement.'));
-    }, 10000);
+    }, 2000);
     const onAdvertisement = (event) => {
       clearTimeout(timeout);
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
@@ -240,18 +240,7 @@ async function autoReconnect() {
       return;
     }
 
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        log(`Attempting direct remembered-device connection (${attempt} of 3)`);
-        await connectDevice(knownDevice);
-        log('Background connection complete without advertisement');
-        return;
-      } catch (error) {
-        logError(`Direct remembered-device connection ${attempt} failed`, error);
-        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-    }
-
+    setStatus('Connecting…');
     log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
     await waitForAdvertisement(knownDevice);
     log('Connecting after advertisement');
@@ -262,6 +251,7 @@ async function autoReconnect() {
   } finally {
     autoReconnectFinished = true;
     busy = false;
+    if (!uartRx) setStatus('');
     render();
   }
 }
