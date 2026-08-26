@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1a365d">
+    <title>micro:bit GPIO 0</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/microbit-web-bluetooth@0.7.0/dist/microbit.umd.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">micro:bit Web Bluetooth</p>
+      <h1>GPIO 0</h1>
+      <p id="status" role="status">Not connected</p>
+      <button id="toggle" type="button" disabled aria-pressed="false">Connect micro:bit</button>
+      <p class="hint">Each press toggles pin 0 between 0 V and 3 V.</p>
+    </main>
+  </body>
+</html>
