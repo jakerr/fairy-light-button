@@ -10,3 +10,7 @@ button { width: 100%; padding: 1rem 1.5rem; border: 0; border-radius: .8rem; bac
 button:hover:not(:disabled) { background: #123b70; transform: translateY(-2px); }
 button.on { background: #16834d; }
 button:disabled { cursor: wait; opacity: .7; }
+.debug-toggle { width: auto; margin-top: 1.25rem; padding: .45rem .7rem; background: transparent; color: #52647d; font-size: .8rem; font-weight: 600; }
+.debug-toggle:hover:not(:disabled) { background: #edf4ff; color: #10223e; transform: none; }
+.debug-panel { max-height: 14rem; margin-top: 1rem; overflow: auto; padding: .75rem; border-radius: .6rem; background: #10223e; color: #dceaff; text-align: left; }
+.debug-panel pre { margin: 0; font: .72rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
