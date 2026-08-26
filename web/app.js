@@ -187,7 +187,7 @@ async function waitForAdvertisement(knownDevice) {
     const timeout = setTimeout(() => {
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
       reject(new Error('Timed out waiting for the micro:bit advertisement.'));
-    }, 5000);
+    }, 10000);
     const onAdvertisement = (event) => {
       clearTimeout(timeout);
       knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
