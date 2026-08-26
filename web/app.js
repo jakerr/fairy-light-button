@@ -225,13 +225,18 @@ async function autoReconnect() {
       return;
     }
 
-    if (knownDevice.gatt?.connected) {
-      log('Remembered device already has a live GATT connection');
-    } else {
-      log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
-      await waitForAdvertisement(knownDevice);
-      log('Connecting after advertisement');
+    try {
+      log('Attempting direct remembered-device connection');
+      await connectDevice(knownDevice);
+      log('Background connection complete without advertisement');
+      return;
+    } catch (error) {
+      logError('Direct remembered-device connection failed', error);
     }
+
+    log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
+    await waitForAdvertisement(knownDevice);
+    log('Connecting after advertisement');
     await connectDevice(knownDevice);
     log('Background connection complete');
   } catch (error) {
