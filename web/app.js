@@ -141,7 +141,6 @@ async function connectGatt(gatt) {
       return;
     } catch (error) {
       logError(`GATT connection attempt ${attempt} failed`, error);
-      if (attempt === 3) throw error;
       await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
