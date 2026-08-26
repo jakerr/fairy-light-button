@@ -17,6 +17,7 @@ let isOn;
 let busy = false;
 let receivedText = '';
 let stateRequest;
+let autoReconnectFinished = false;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -41,7 +42,7 @@ function setStatus(message, type = '') {
 
 function render() {
   connectButton.disabled = busy;
-  connectButton.hidden = Boolean(uartRx);
+  connectButton.hidden = Boolean(uartRx) || !autoReconnectFinished;
   toggleControl.hidden = !uartRx;
   toggle.disabled = busy || isOn === undefined;
   toggle.checked = Boolean(isOn);
@@ -177,6 +178,67 @@ async function connect() {
   await connectDevice(selectedDevice);
 }
 
+async function waitForAdvertisement(knownDevice) {
+  if (typeof knownDevice.watchAdvertisements !== 'function') {
+    throw new Error('Advertisement watching is unavailable in this browser.');
+  }
+
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+      reject(new Error('Timed out waiting for the micro:bit advertisement.'));
+    }, 5000);
+    const onAdvertisement = (event) => {
+      clearTimeout(timeout);
+      knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+      log(`Advertisement received${event.rssi === undefined ? '' : ` (RSSI ${event.rssi})`}`);
+      resolve();
+    };
+
+    knownDevice.addEventListener('advertisementreceived', onAdvertisement);
+    knownDevice.watchAdvertisements()
+      .then(() => log('Watching for the micro:bit advertisement'))
+      .catch((error) => {
+        clearTimeout(timeout);
+        knownDevice.removeEventListener('advertisementreceived', onAdvertisement);
+        reject(error);
+      });
+  });
+}
+
+async function autoReconnect() {
+  if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') {
+    log('Remembered-device access is unavailable in this browser');
+    autoReconnectFinished = true;
+    render();
+    return;
+  }
+
+  busy = true;
+  render();
+  try {
+    log('Looking for a previously selected device');
+    const devices = await navigator.bluetooth.getDevices();
+    const knownDevice = devices.find((candidate) => candidate.name?.startsWith('BBC micro:bit'));
+    if (!knownDevice) {
+      log('No previously selected micro:bit found');
+      return;
+    }
+
+    log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
+    await waitForAdvertisement(knownDevice);
+    log('Connecting after advertisement');
+    await connectDevice(knownDevice);
+    log('Background connection complete');
+  } catch (error) {
+    logError('Background connection failed', error);
+  } finally {
+    autoReconnectFinished = true;
+    busy = false;
+    render();
+  }
+}
+
 async function connectFromButton() {
   busy = true;
   render();
@@ -229,3 +291,4 @@ window.addEventListener('pagehide', () => {
     device.gatt.disconnect();
   }
 });
+autoReconnect();
