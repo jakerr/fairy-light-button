@@ -17,8 +17,6 @@ let isOn;
 let busy = false;
 let receivedText = '';
 let stateRequest;
-let reconnectAttempted = false;
-let rememberedDevice;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -43,7 +41,7 @@ function setStatus(message, type = '') {
 
 function render() {
   connectButton.disabled = busy;
-  connectButton.hidden = Boolean(uartRx) || !reconnectAttempted;
+  connectButton.hidden = Boolean(uartRx);
   toggleControl.hidden = !uartRx;
   toggle.disabled = busy || isOn === undefined;
   toggle.checked = Boolean(isOn);
@@ -134,19 +132,6 @@ async function readState() {
   }
 }
 
-async function connectGatt(gatt) {
-  for (let attempt = 1; attempt <= 10; attempt += 1) {
-    try {
-      log(`Connecting to GATT server (attempt ${attempt} of 3)`);
-      await gatt.connect();
-      return;
-    } catch (error) {
-      logError(`GATT connection attempt ${attempt} failed`, error);
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
-}
-
 async function connectDevice(selectedDevice) {
   device = selectedDevice;
   log(`Using device: ${device.name || '(unnamed)'}`);
@@ -154,7 +139,8 @@ async function connectDevice(selectedDevice) {
   const gatt = device.gatt;
   if (!gatt) throw new Error('Could not connect to your lights.');
   if (!gatt.connected) {
-    await connectGatt(gatt);
+    log('Connecting to GATT server');
+    await gatt.connect();
   }
   log('GATT connected');
 
@@ -191,55 +177,12 @@ async function connect() {
   await connectDevice(selectedDevice);
 }
 
-async function reconnect() {
-  if (!navigator.bluetooth || typeof navigator.bluetooth.getDevices !== 'function') {
-    log('Background reconnection is unavailable in this browser');
-    reconnectAttempted = true;
-    render();
-    return;
-  }
-
-  busy = true;
-  render();
-  setStatus('Connecting…');
-  try {
-    log('Looking for a previously selected device');
-    const devices = await navigator.bluetooth.getDevices();
-    const knownDevice = devices.find((candidate) => candidate.name?.startsWith('BBC micro:bit'));
-    if (!knownDevice) {
-      log('No previously selected micro:bit found');
-      return;
-    }
-
-    rememberedDevice = knownDevice;
-    log(`Attempting background connection to ${knownDevice.name || '(unnamed)'}`);
-    await connectDevice(knownDevice);
-    log('Background connection complete');
-  } catch (error) {
-    logError('Background connection failed', error);
-  } finally {
-    reconnectAttempted = true;
-    busy = false;
-    setStatus('');
-    render();
-  }
-}
-
 async function connectFromButton() {
   busy = true;
   render();
 
   try {
     log('Connect button pressed');
-    if (rememberedDevice) {
-      try {
-        log('Retrying remembered device from a user gesture');
-        await connectDevice(rememberedDevice);
-        return;
-      } catch (error) {
-        logError('Remembered-device retry failed', error);
-      }
-    }
     await connect();
   } catch (error) {
     logError('Operation failed', error);
@@ -286,4 +229,3 @@ window.addEventListener('pagehide', () => {
     device.gatt.disconnect();
   }
 });
-reconnect();
