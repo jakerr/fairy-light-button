@@ -134,7 +134,7 @@ async function readState() {
 }
 
 async function connectGatt(gatt) {
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  for (let attempt = 1; attempt <= 10; attempt += 1) {
     try {
       log(`Connecting to GATT server (attempt ${attempt} of 3)`);
       await gatt.connect();
