@@ -225,9 +225,13 @@ async function autoReconnect() {
       return;
     }
 
-    log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
-    await waitForAdvertisement(knownDevice);
-    log('Connecting after advertisement');
+    if (knownDevice.gatt?.connected) {
+      log('Remembered device already has a live GATT connection');
+    } else {
+      log(`Waiting to rediscover ${knownDevice.name || 'micro:bit'}`);
+      await waitForAdvertisement(knownDevice);
+      log('Connecting after advertisement');
+    }
     await connectDevice(knownDevice);
     log('Background connection complete');
   } catch (error) {
@@ -285,10 +289,4 @@ debugToggle.addEventListener('click', () => {
   log(`Debug log ${isOpen ? 'opened' : 'hidden'}`);
 });
 log('Page ready');
-window.addEventListener('pagehide', () => {
-  if (device?.gatt?.connected) {
-    log('Releasing GATT connection before leaving the page');
-    device.gatt.disconnect();
-  }
-});
 autoReconnect();
