@@ -18,6 +18,7 @@ let busy = false;
 let receivedText = '';
 let stateRequest;
 let reconnectAttempted = false;
+let rememberedDevice;
 
 function log(message) {
   const time = new Date().toLocaleTimeString();
@@ -210,6 +211,7 @@ async function reconnect() {
       return;
     }
 
+    rememberedDevice = knownDevice;
     log(`Attempting background connection to ${knownDevice.name || '(unnamed)'}`);
     await connectDevice(knownDevice);
     log('Background connection complete');
@@ -229,6 +231,15 @@ async function connectFromButton() {
 
   try {
     log('Connect button pressed');
+    if (rememberedDevice) {
+      try {
+        log('Retrying remembered device from a user gesture');
+        await connectDevice(rememberedDevice);
+        return;
+      } catch (error) {
+        logError('Remembered-device retry failed', error);
+      }
+    }
     await connect();
   } catch (error) {
     logError('Operation failed', error);
