@@ -133,6 +133,20 @@ async function readState() {
   }
 }
 
+async function connectGatt(gatt) {
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      log(`Connecting to GATT server (attempt ${attempt} of 3)`);
+      await gatt.connect();
+      return;
+    } catch (error) {
+      logError(`GATT connection attempt ${attempt} failed`, error);
+      if (attempt === 3) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+}
+
 async function connectDevice(selectedDevice) {
   device = selectedDevice;
   log(`Using device: ${device.name || '(unnamed)'}`);
@@ -140,8 +154,7 @@ async function connectDevice(selectedDevice) {
   const gatt = device.gatt;
   if (!gatt) throw new Error('Could not connect to your lights.');
   if (!gatt.connected) {
-    log('Connecting to GATT server');
-    await gatt.connect();
+    await connectGatt(gatt);
   }
   log('GATT connected');
 
@@ -257,4 +270,10 @@ debugToggle.addEventListener('click', () => {
   log(`Debug log ${isOpen ? 'opened' : 'hidden'}`);
 });
 log('Page ready');
+window.addEventListener('pagehide', () => {
+  if (device?.gatt?.connected) {
+    log('Releasing GATT connection before leaving the page');
+    device.gatt.disconnect();
+  }
+});
 reconnect();
