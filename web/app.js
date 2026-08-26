@@ -1,4 +1,6 @@
-const button = document.querySelector('#toggle');
+const connectButton = document.querySelector('#connect');
+const toggleControl = document.querySelector('#toggle-control');
+const toggle = document.querySelector('#toggle');
 const status = document.querySelector('#status');
 const debugToggle = document.querySelector('#debug-toggle');
 const debugPanel = document.querySelector('#debug-panel');
@@ -39,11 +41,11 @@ function setStatus(message, type = '') {
 }
 
 function render() {
-  button.disabled = busy;
-  button.hidden = !uartRx && !reconnectAttempted;
-  button.classList.toggle('on', Boolean(isOn) && uartRx);
-  button.setAttribute('aria-pressed', String(Boolean(isOn)));
-  button.textContent = uartRx ? (isOn === undefined ? 'Check lights' : (isOn ? 'Turn off' : 'Turn on')) : 'Connect';
+  connectButton.disabled = busy;
+  connectButton.hidden = Boolean(uartRx) || !reconnectAttempted;
+  toggleControl.hidden = !uartRx;
+  toggle.disabled = busy || isOn === undefined;
+  toggle.checked = Boolean(isOn);
 }
 
 function disconnect() {
@@ -209,27 +211,31 @@ async function reconnect() {
   }
 }
 
-async function toggle() {
+async function connectFromButton() {
   busy = true;
   render();
 
   try {
-    if (!uartRx) {
-      log('Connect button pressed');
-      await connect();
-      return;
-    }
+    log('Connect button pressed');
+    await connect();
+  } catch (error) {
+    logError('Operation failed', error);
+    setStatus(device ? 'Could not check your lights.' : 'No lights were selected.', 'error');
+  } finally {
+    busy = false;
+    render();
+  }
+}
 
-    if (isOn === undefined) {
-      log('Checking light state');
-      await readState();
-      setStatus('');
-      return;
-    }
+async function changeLights() {
+  const nextState = toggle.checked;
+  busy = true;
+  render();
 
-    log(`Changing lights from ${isOn ? 'on' : 'off'}`);
-    await send(isOn ? '0' : '1');
-    isOn = !isOn;
+  try {
+    log(`Changing lights from ${isOn ? 'on' : 'off'} to ${nextState ? 'on' : 'off'}`);
+    await send(nextState ? '1' : '0');
+    isOn = nextState;
     setStatus('');
   } catch (error) {
     logError('Operation failed', error);
@@ -240,9 +246,9 @@ async function toggle() {
   }
 }
 
-button.disabled = false;
 render();
-button.addEventListener('click', toggle);
+connectButton.addEventListener('click', connectFromButton);
+toggle.addEventListener('change', changeLights);
 debugToggle.addEventListener('click', () => {
   const isOpen = debugPanel.hidden;
   debugPanel.hidden = !isOpen;

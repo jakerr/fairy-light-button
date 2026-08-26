@@ -12,6 +12,15 @@ button:hover:not(:disabled) { background: #123b70; transform: translateY(-2px); 
 button.on { background: #16834d; }
 button:disabled { cursor: wait; opacity: .7; }
 button[hidden] { display: none; }
+.switch { display: inline-block; margin: .5rem 0; cursor: pointer; }
+.switch[hidden] { display: none !important; }
+.switch input { position: absolute; inline-size: 1px; block-size: 1px; opacity: 0; }
+.switch-track { display: flex; align-items: center; inline-size: 5rem; block-size: 2.75rem; padding: .25rem; border-radius: 999px; background: #8394aa; transition: background .2s; }
+.switch-thumb { inline-size: 2.25rem; block-size: 2.25rem; border-radius: 50%; background: white; box-shadow: 0 .12rem .3rem #10223e40; transition: transform .2s; }
+.switch input:checked + .switch-track { background: #16834d; }
+.switch input:checked + .switch-track .switch-thumb { transform: translateX(2.25rem); }
+.switch input:focus-visible + .switch-track { outline: 3px solid #3b82f6; outline-offset: 3px; }
+.switch input:disabled + .switch-track { cursor: wait; opacity: .55; }
 .debug-toggle { position: absolute; top: 1rem; right: 1rem; inline-size: 2rem; block-size: 2rem; padding: 0; border: 1px solid #c6d4e7; border-radius: 50%; background: white; color: #52647d; font-size: .9rem; font-weight: 700; line-height: 1; }
 .debug-toggle:hover:not(:disabled) { background: #edf4ff; color: #10223e; transform: none; }
 .debug-panel { max-height: 14rem; margin-top: 1rem; overflow: auto; padding: .75rem; border-radius: .6rem; background: #10223e; color: #dceaff; text-align: left; }
