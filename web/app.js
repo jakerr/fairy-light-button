@@ -207,6 +207,7 @@ debugToggle.addEventListener('click', () => {
   const isOpen = debugPanel.hidden;
   debugPanel.hidden = !isOpen;
   debugToggle.setAttribute('aria-expanded', String(isOpen));
-  debugToggle.textContent = isOpen ? 'Hide debug' : 'Debug';
+  debugToggle.setAttribute('aria-label', isOpen ? 'Hide debug log' : 'Show debug log');
+  log(`Debug log ${isOpen ? 'opened' : 'hidden'}`);
 });
 log('Page ready');
